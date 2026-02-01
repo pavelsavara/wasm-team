@@ -348,6 +348,48 @@ if script_dir and suite_name and csproj_path and failures_by_method:
             f.write(f'"$SCRIPT_DIR/run-test-suite.sh" "{suite_name}" "{csproj_path}" -m {method_name}\n')
 
     print(f"Appended {len(failures_by_method)} command(s) to: {run_all_file}")
+
+# Collect passed tests and append to run-all-ok-tests.sh
+passes_by_method = set()
+
+# Handle xUnit format: <test result="Pass">
+for test_elem in root.iter('test'):
+    result = test_elem.get('result', '')
+    if result == 'Pass':
+        full_name = test_elem.get('name', 'unknown')
+        method_name = extract_method_name(full_name)
+        passes_by_method.add(method_name)
+
+# Handle NUnit format: <test-case result="Passed">
+for test_case in root.iter('test-case'):
+    result = test_case.get('result', '')
+    if result == 'Passed':
+        full_name = test_case.get('fullname') or test_case.get('name', 'unknown')
+        method_name = extract_method_name(full_name)
+        passes_by_method.add(method_name)
+
+if script_dir and suite_name and csproj_path and passes_by_method:
+    run_ok_file = os.path.join(script_dir, 'run-all-ok-tests.sh')
+
+    # Create file with shebang if it doesn't exist
+    if not os.path.exists(run_ok_file):
+        with open(run_ok_file, 'w') as f:
+            f.write("#!/bin/bash\n")
+            f.write("# Auto-generated script to re-run passed tests\n")
+            f.write("# Each line runs a single passed test method\n")
+            f.write("#\n")
+            f.write("# Usage: Run from the root of a runtime repository (runtime or runtime2)\n")
+            f.write("#   bash ../wasm-team/scripts/run-all-ok-tests.sh\n\n")
+            f.write("set -e\n\n")
+            f.write("SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n\n")
+        os.chmod(run_ok_file, 0o755)
+
+    # Append commands for each passed method
+    with open(run_ok_file, 'a') as f:
+        for method_name in sorted(passes_by_method):
+            f.write(f'"$SCRIPT_DIR/run-test-suite.sh" "{suite_name}" "{csproj_path}" -m {method_name}\n')
+
+    print(f"Appended {len(passes_by_method)} command(s) to: {run_ok_file}")
 PYEOF
     fi
 fi

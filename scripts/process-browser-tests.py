@@ -178,14 +178,14 @@ def get_project_info(filepath):
     return None, None
 
 def generate_run_script(tests):
-    """Generate the run-all-failed-tests.sh script."""
+    """Generate the run-all-enabled-tests.sh script."""
     script_lines = [
         "#!/bin/bash",
         "# Auto-generated script to run browser tests that were previously skipped",
         "# Each line runs a single test method via run-test-suite.sh",
         "#",
         "# Usage: Run from the root of a runtime repository (runtime or runtime2)",
-        "#   bash ../wasm-team/scripts/run-all-failed-tests.sh",
+        "#   bash ../wasm-team/scripts/run-all-enabled-tests.sh",
         "",
         "# Don't use set -e - we want to continue running tests even if some fail",
         "",
@@ -299,10 +299,10 @@ def main():
     print(f"Found {len(tests)} test entries")
     
     # Generate run script
-    print("\nGenerating run-all-failed-tests.sh...")
+    print("\nGenerating run-all-enabled-tests.sh...")
     script_content = generate_run_script(tests)
     script_dir = Path(__file__).parent
-    script_path = script_dir / "run-all-failed-tests.sh"
+    script_path = script_dir / "run-all-enabled-tests.sh"
     with open(script_path, 'w') as f:
         f.write('\n'.join(script_content))
     os.chmod(script_path, 0o755)
