@@ -10,6 +10,7 @@ Usage: Run from the root of a runtime repository (runtime or runtime2)
 import re
 import os
 import sys
+import argparse
 from pathlib import Path
 from collections import defaultdict
 
@@ -24,6 +25,14 @@ def get_repo_root():
 
 # Base path for the repository
 REPO_ROOT = get_repo_root()
+
+# Global verbose flag
+VERBOSE = False
+
+def log_verbose(msg):
+    """Print message only if verbose mode is enabled."""
+    if VERBOSE:
+        print(f"[VERBOSE] {msg}")
 
 # Pattern to match Browser-related test skip attributes
 BROWSER_ATTR_PATTERN = re.compile(
@@ -67,10 +76,13 @@ def extract_test_info_from_file(filepath, line_num):
     """Extract the test method name and class from the source file."""
     full_path = REPO_ROOT / filepath
     if not full_path.exists():
+        log_verbose(f"File not found: {full_path}")
         return None, None, None
     
     with open(full_path, 'r') as f:
         lines = f.readlines()
+    
+    log_verbose(f"Extracting test info from {filepath}:{line_num}")
     
     # Find the test method name (look forward from the attribute line)
     method_name = None
@@ -83,15 +95,57 @@ def extract_test_info_from_file(filepath, line_num):
         method_match = re.search(r'public\s+(?:static\s+)?(?:async\s+)?(?:\w+(?:<[^>]+>)?)\s+(\w+)\s*\(', line)
         if method_match:
             method_name = method_match.group(1)
+            log_verbose(f"  Found method '{method_name}' at line {i+1}")
             break
     
-    # Look backward for class name
-    for i in range(line_num - 1, -1, -1):
-        line = lines[i]
-        class_match = re.search(r'(?:public\s+)?(?:sealed\s+)?(?:abstract\s+)?(?:static\s+)?class\s+(\w+)', line)
-        if class_match:
-            class_name = class_match.group(1)
+    # Find the containing class by tracking brace depth from the beginning of the file
+    # We need to find which class the test method (at line_num) is directly inside
+    class_stack = []  # Stack of (class_name, brace_depth_when_class_started, line_declared)
+    brace_depth = 0
+    
+    for i in range(line_num + 10):  # Go slightly past line_num to handle the method
+        if i >= len(lines):
             break
+        line = lines[i]
+        
+        # Check for class declaration before counting braces on this line
+        class_match = re.search(r'(?:public|private|protected|internal)?\s*(?:sealed\s+)?(?:abstract\s+)?(?:static\s+)?(?:partial\s+)?class\s+(\w+)', line)
+        if class_match:
+            # This class starts at current brace_depth, record the line it was declared
+            class_stack.append((class_match.group(1), brace_depth, i))
+            log_verbose(f"  Line {i+1}: Found class '{class_match.group(1)}' at brace_depth={brace_depth}")
+        
+        # Count braces (simple counting, doesn't handle strings/comments perfectly but good enough)
+        # Remove string literals and comments to avoid counting braces inside them
+        clean_line = re.sub(r'"[^"]*"', '', line)  # Remove string literals
+        clean_line = re.sub(r'//.*$', '', clean_line)  # Remove line comments
+        
+        open_braces = clean_line.count('{')
+        close_braces = clean_line.count('}')
+        
+        brace_depth += open_braces
+        
+        # If we've reached our target line, the current class stack gives us the containing class
+        if i >= line_num - 1:
+            log_verbose(f"  Line {i+1}: Reached target, brace_depth={brace_depth}, class_stack={[(c[0], c[1]) for c in class_stack]}")
+            # The test method should be in the innermost class that started before it
+            # and hasn't ended yet (brace_depth > class's starting depth)
+            while class_stack and brace_depth <= class_stack[-1][1]:
+                log_verbose(f"    Popping {class_stack[-1][:2]} (brace_depth {brace_depth} <= {class_stack[-1][1]})")
+                class_stack.pop()
+            if class_stack:
+                class_name = class_stack[-1][0]
+                log_verbose(f"  Final class: {class_name}")
+            else:
+                log_verbose(f"  WARNING: No containing class found!")
+            break
+        
+        # Process closing braces - pop classes that have ended
+        # But don't pop a class that was declared on this line (its { may be on the next line)
+        brace_depth -= close_braces
+        while class_stack and brace_depth <= class_stack[-1][1] and class_stack[-1][2] < i:
+            log_verbose(f"  Line {i+1}: Popping {class_stack[-1][:2]} (brace_depth {brace_depth} <= {class_stack[-1][1]})")
+            class_stack.pop()
     
     # Look for namespace
     for i in range(min(line_num - 1, len(lines) - 1), -1, -1):
@@ -99,8 +153,10 @@ def extract_test_info_from_file(filepath, line_num):
         ns_match = re.search(r'namespace\s+([\w.]+)', line)
         if ns_match:
             namespace = ns_match.group(1)
+            log_verbose(f"  Found namespace '{namespace}' at line {i+1}")
             break
     
+    log_verbose(f"  Result: {namespace}.{class_name}.{method_name}")
     return namespace, class_name, method_name
 
 def get_project_info(filepath):
@@ -131,9 +187,11 @@ def generate_run_script(tests):
         "# Usage: Run from the root of a runtime repository (runtime or runtime2)",
         "#   bash ../wasm-team/scripts/run-all-failed-tests.sh",
         "",
-        "set -e",
+        "# Don't use set -e - we want to continue running tests even if some fail",
         "",
         "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"",
+        "FAILED_COUNT=0",
+        "PASSED_COUNT=0",
         "",
     ]
     
@@ -156,11 +214,21 @@ def generate_run_script(tests):
     for (project_path, suite_name), test_list in sorted(tests_by_project.items()):
         script_lines.append(f"# Tests from {project_path}")
         for t in test_list:
-            script_lines.append(f"\"$SCRIPT_DIR/run-test-suite.sh\" \"{suite_name}\" \"{project_path}\" -m {t['fqn']} # {t['file']}:{t['line']}")
+            script_lines.append(f"if \"$SCRIPT_DIR/run-test-suite.sh\" \"{suite_name}\" \"{project_path}\" -m {t['fqn']}; then # {t['file']}:{t['line']}")
+            script_lines.append("    ((PASSED_COUNT++))")
+            script_lines.append("else")
+            script_lines.append("    ((FAILED_COUNT++))")
+            script_lines.append("fi")
     
-    script_lines.append("echo \"All specified tests have been run.\"")
     script_lines.append("")
-    script_lines.append("#################################")
+    script_lines.append("echo \"\"")
+    script_lines.append("echo \"========================================\"")
+    script_lines.append("echo \"SUMMARY: $PASSED_COUNT passed, $FAILED_COUNT failed\"")
+    script_lines.append("echo \"========================================\"")
+    script_lines.append("")
+    script_lines.append("if [ $FAILED_COUNT -gt 0 ]; then")
+    script_lines.append("    exit 1")
+    script_lines.append("fi")
     script_lines.append("")
     return script_lines
 
@@ -217,6 +285,14 @@ def modify_source_file(filepath, modifications):
     print(f"Modified: {filepath}")
 
 def main():
+    global VERBOSE
+    parser = argparse.ArgumentParser(description='Scan source files for Browser-skipped tests and generate reports.')
+    parser.add_argument('--dry-run', action='store_true', help='Generate script without modifying source files')
+    parser.add_argument('--verbose', '-v', action='store_true', help='Enable verbose logging for debugging')
+    args = parser.parse_args()
+    
+    VERBOSE = args.verbose
+
     print(f"Runtime root: {REPO_ROOT}")
     print("Scanning source files for Browser-skipped tests...")
     tests = find_browser_skipped_tests()
@@ -232,15 +308,18 @@ def main():
     os.chmod(script_path, 0o755)
     print(f"Created: {script_path}")
     
-    # Group modifications by file
-    mods_by_file = defaultdict(list)
-    for test in tests:
-        mods_by_file[test['file']].append(test)
-    
-    # Apply modifications
-    print("\nModifying source files...")
-    for filepath, mods in mods_by_file.items():
-        modify_source_file(filepath, mods)
+    if args.dry_run:
+        print("\n--dry-run specified, skipping source file modifications.")
+    else:
+        # Group modifications by file
+        mods_by_file = defaultdict(list)
+        for test in tests:
+            mods_by_file[test['file']].append(test)
+        
+        # Apply modifications
+        print("\nModifying source files...")
+        for filepath, mods in mods_by_file.items():
+            modify_source_file(filepath, mods)
     
     print("\nDone!")
 
