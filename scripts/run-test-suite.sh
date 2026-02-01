@@ -1,17 +1,28 @@
 #!/bin/bash
 
 # Script to run a single browser test suite with CoreCLR
-# Usage: ./browser-tests/run-test-suite.sh <SuiteName> <csprojPath> [-c <Configuration>] [-m <Method>]
-# Example: ./browser-tests/run-test-suite.sh System.Resources.Writer.Tests src/libraries/System.Resources.Writer/tests/System.Resources.Writer.Tests.csproj
-# Example: ./browser-tests/run-test-suite.sh System.Resources.Writer.Tests src/libraries/System.Resources.Writer/tests/System.Resources.Writer.Tests.csproj -c Debug
-# Example: ./browser-tests/run-test-suite.sh System.Runtime.InteropServices.JavaScript.Tests src/libraries/System.Runtime.InteropServices.JavaScript/tests/System.Runtime.InteropServices.JavaScript.Tests/System.Runtime.InteropServices.JavaScript.Tests.csproj -m System.Runtime.InteropServices.JavaScript.Tests.MarshalTests.TestFunctionApply
+#
+# Usage: Run from the root of a runtime repository (runtime or runtime2)
+#   ../wasm-team/scripts/run-test-suite.sh <SuiteName> <csprojPath> [-c <Configuration>] [-m <Method>]
+#
+# Examples:
+#   ../wasm-team/scripts/run-test-suite.sh System.Resources.Writer.Tests src/libraries/System.Resources.Writer/tests/System.Resources.Writer.Tests.csproj
+#   ../wasm-team/scripts/run-test-suite.sh System.Resources.Writer.Tests src/libraries/System.Resources.Writer/tests/System.Resources.Writer.Tests.csproj -c Debug
+#   ../wasm-team/scripts/run-test-suite.sh System.Runtime.InteropServices.JavaScript.Tests src/libraries/System.Runtime.InteropServices.JavaScript/tests/System.Runtime.InteropServices.JavaScript.Tests/System.Runtime.InteropServices.JavaScript.Tests.csproj -m System.Runtime.InteropServices.JavaScript.Tests.MarshalTests.TestFunctionApply
 #
 # Follows the process documented in test-suite.md
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Detect runtime root - current directory should be runtime repo
+REPO_ROOT="$(pwd)"
+if [ ! -f "$REPO_ROOT/build.sh" ] || [ ! -d "$REPO_ROOT/src/libraries" ]; then
+    echo "Error: This script must be run from the root of a runtime repository."
+    echo "Usage: cd /path/to/runtime && $SCRIPT_DIR/run-test-suite.sh <SuiteName> <csprojPath> [-c <Configuration>] [-m <Method>]"
+    exit 1
+fi
 
 SUITE_NAME="$1"
 CSPROJ_PATH="$2"
@@ -46,7 +57,7 @@ export SSL_CERT_DIR="$HOME/.aspnet/dev-certs/trust:/usr/lib/ssl/certs"
 export PATH="$REPO_ROOT/.dotnet:$PATH"
 
 # Prepare results directory
-RESULTS_DIR="$SCRIPT_DIR/results/$SUITE_NAME"
+RESULTS_DIR="$REPO_ROOT/browser-runs/results/$SUITE_NAME"
 mkdir -p "$RESULTS_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BUILD_LOG="$RESULTS_DIR/build_${TIMESTAMP}.log"
@@ -59,6 +70,7 @@ if [ -n "$METHOD" ]; then
     echo "Method:  $METHOD"
 fi
 echo "Results: $RESULTS_DIR"
+echo "Runtime: $REPO_ROOT"
 echo "=========================================="
 
 # Download Mono baseline if not exists
@@ -153,7 +165,7 @@ if [ "$RESULTS_COPIED" = true ]; then
         echo "Extracting $FAILURE_COUNT failure(s) to: $FAILURES_DIR"
 
         # Use Python to parse XML and extract failures (more reliable than grep/sed)
-        export RESULTS_XML FAILURES_DIR TIMESTAMP CSPROJ_PATH CONFIG SCRIPT_DIR
+        export RESULTS_XML FAILURES_DIR TIMESTAMP CSPROJ_PATH CONFIG SCRIPT_DIR REPO_ROOT
         python3 << 'PYEOF'
 import xml.etree.ElementTree as ET
 import os
@@ -322,14 +334,18 @@ if script_dir and suite_name and csproj_path and failures_by_method:
         with open(run_all_file, 'w') as f:
             f.write("#!/bin/bash\n")
             f.write("# Auto-generated script to re-run failed tests\n")
-            f.write("# Each line runs a single failed test method\n\n")
+            f.write("# Each line runs a single failed test method\n")
+            f.write("#\n")
+            f.write("# Usage: Run from the root of a runtime repository (runtime or runtime2)\n")
+            f.write("#   bash ../wasm-team/scripts/run-all-failed-tests.sh\n\n")
             f.write("set -e\n\n")
+            f.write("SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n\n")
         os.chmod(run_all_file, 0o755)
 
     # Append commands for each failed method
     with open(run_all_file, 'a') as f:
         for method_name in sorted(failures_by_method.keys()):
-            f.write(f'./browser-tests/run-test-suite.sh "{suite_name}" "{csproj_path}" -m {method_name}\n')
+            f.write(f'"$SCRIPT_DIR/run-test-suite.sh" "{suite_name}" "{csproj_path}" -m {method_name}\n')
 
     print(f"Appended {len(failures_by_method)} command(s) to: {run_all_file}")
 PYEOF

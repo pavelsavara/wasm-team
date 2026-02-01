@@ -1,13 +1,24 @@
 #!/bin/bash
 
 # Script to download Mono baseline console log from Helix
-# Usage: ./browser-tests/download-mono-baseline.sh <TestProjectName>
-# Example: ./browser-tests/download-mono-baseline.sh System.Runtime.InteropServices.JavaScript.Tests
+#
+# Usage: Run from the root of a runtime repository (runtime or runtime2)
+#   ../wasm-team/scripts/download-mono-baseline.sh <TestProjectName>
+#
+# Example:
+#   ../wasm-team/scripts/download-mono-baseline.sh System.Runtime.InteropServices.JavaScript.Tests
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Detect runtime root - current directory should be runtime repo
+REPO_ROOT="$(pwd)"
+if [ ! -f "$REPO_ROOT/build.sh" ] || [ ! -d "$REPO_ROOT/src/libraries" ]; then
+    echo "Error: This script must be run from the root of a runtime repository."
+    echo "Usage: cd /path/to/runtime && $SCRIPT_DIR/download-mono-baseline.sh <TestProjectName>"
+    exit 1
+fi
 
 if [ -z "$1" ]; then
     echo "Usage: $0 <TestProjectName>"

@@ -1,12 +1,29 @@
 #!/usr/bin/env python3
 
+"""
+Script to scan source files for Browser-skipped tests and generate reports.
+
+Usage: Run from the root of a runtime repository (runtime or runtime2)
+    python3 ../wasm-team/scripts/process-browser-tests.py
+"""
+
 import re
 import os
+import sys
 from pathlib import Path
 from collections import defaultdict
 
+def get_repo_root():
+    """Get the runtime repository root from current directory."""
+    cwd = Path.cwd()
+    if (cwd / "build.sh").exists() and (cwd / "src/libraries").exists():
+        return cwd
+    print("Error: This script must be run from the root of a runtime repository.")
+    print(f"Current directory: {cwd}")
+    sys.exit(1)
+
 # Base path for the repository
-REPO_ROOT = Path("/home/pavelsavara/dev/runtime2")
+REPO_ROOT = get_repo_root()
 
 # Pattern to match Browser-related test skip attributes
 BROWSER_ATTR_PATTERN = re.compile(
@@ -110,8 +127,13 @@ def generate_run_script(tests):
         "#!/bin/bash",
         "# Auto-generated script to run browser tests that were previously skipped",
         "# Each line runs a single test method via run-test-suite.sh",
+        "#",
+        "# Usage: Run from the root of a runtime repository (runtime or runtime2)",
+        "#   bash ../wasm-team/scripts/run-all-failed-tests.sh",
         "",
         "set -e",
+        "",
+        "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"",
         "",
     ]
     
@@ -134,7 +156,7 @@ def generate_run_script(tests):
     for (project_path, suite_name), test_list in sorted(tests_by_project.items()):
         script_lines.append(f"# Tests from {project_path}")
         for t in test_list:
-            script_lines.append(f"./browser-tests/run-test-suite.sh \"{suite_name}\" \"{project_path}\" -m {t['fqn']} # {t['file']}:{t['line']}")
+            script_lines.append(f"\"$SCRIPT_DIR/run-test-suite.sh\" \"{suite_name}\" \"{project_path}\" -m {t['fqn']} # {t['file']}:{t['line']}")
     
     script_lines.append("echo \"All specified tests have been run.\"")
     script_lines.append("")
@@ -195,6 +217,7 @@ def modify_source_file(filepath, modifications):
     print(f"Modified: {filepath}")
 
 def main():
+    print(f"Runtime root: {REPO_ROOT}")
     print("Scanning source files for Browser-skipped tests...")
     tests = find_browser_skipped_tests()
     print(f"Found {len(tests)} test entries")
@@ -202,9 +225,10 @@ def main():
     # Generate run script
     print("\nGenerating run-all-failed-tests.sh...")
     script_content = generate_run_script(tests)
-    script_path = REPO_ROOT / "browser-tests" / "run-all-failed-tests.sh"
+    script_dir = Path(__file__).parent
+    script_path = script_dir / "run-all-failed-tests.sh"
     with open(script_path, 'w') as f:
-        f.write(script_content)
+        f.write('\n'.join(script_content))
     os.chmod(script_path, 0o755)
     print(f"Created: {script_path}")
     

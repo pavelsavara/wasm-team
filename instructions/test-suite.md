@@ -4,18 +4,21 @@ This document describes the process for running individual Browser/WASM CoreCLR 
 
 **Prerequisites:** Complete the [before-testing.md](before-testing.md) setup first.
 
+**Important:** All scripts should be run from the root of a runtime repository (e.g., `runtime` or `runtime2`).
+
 
 ## Downloading Mono Baseline
 
 Each test suite has a corresponding Mono baseline from Helix. Download it before running tests:
 
 ```bash
-./browser-tests/download-mono-baseline.sh <TestProjectName>
+# Run from the root of your runtime repo
+../wasm-team/scripts/download-mono-baseline.sh <TestProjectName>
 ```
 
 Example:
 ```bash
-./browser-tests/download-mono-baseline.sh System.Runtime.InteropServices.JavaScript.Tests
+../wasm-team/scripts/download-mono-baseline.sh System.Runtime.InteropServices.JavaScript.Tests
 ```
 
 This downloads to `browser-runs/baseline/<TestProject>/mono-console.log` and displays the Mono test summary.
@@ -25,7 +28,13 @@ This downloads to `browser-runs/baseline/<TestProject>/mono-console.log` and dis
 ### Using the Script
 
 ```bash
-./browser-tests/run-test-suite.sh <suite-full-name> <full-path-to-test-csproj>
+# Run from the root of your runtime repo
+../wasm-team/scripts/run-test-suite.sh <suite-full-name> <full-path-to-test-csproj>
+```
+
+Example:
+```bash
+../wasm-team/scripts/run-test-suite.sh System.Runtime.Tests src/libraries/System.Runtime/tests/System.Runtime.Tests/System.Runtime.Tests.csproj
 ```
 
 ## Test Result Locations
@@ -59,7 +68,7 @@ This downloads to `browser-runs/baseline/<TestProject>/mono-console.log` and dis
 7. **Compare test counts**: `Tests run: X Passed: Y Failed: Z Skipped: N` with the Mono baseline at: `browser-runs/baseline/<TestProject>/mono-console.log`
 8. **Compare test sets** with the Mono baseline at: `browser-runs/baseline/<TestProject>/mono-testResults.xml`. Which tests are missing and which are extra ?
 9. **Create or update** `browser-runs/results/<TestProject>/Summary.md` with the outcome. **Include link to failure record in the Failures section!**
-10. **Update the overall status** in "Completed Test Suites" of [plan.md](./plan.md)
+10. **Update the overall status** in "Completed Test Suites" of plan.md
 11. **Stop and ask for feedback before proceeding.**
 12. **Rebuild and re-run** the test suite to continue until all enabled tests pass or until you tried to run the suite more then 3 times already.
 
@@ -129,7 +138,8 @@ If the test suite hangs, times out, VM crashes, or exits with non-zero code:
 Use the comparison script to identify differences between CoreCLR and Mono test sets:
 
 ```bash
-./browser-tests/compare-test-results.sh <TestProjectName>
+# Run from the root of your runtime repo
+../wasm-team/scripts/compare-test-results.sh <TestProjectName>
 ```
 
 This uses `sort` and `comm` to compare sorted test name lists and reports:
@@ -156,7 +166,7 @@ Create or update `browser-runs/results/<TestProject>/Summary.md` after each test
 
 ## Test Set Comparison
 
-Run: `./browser-tests/compare-test-results.sh <TestProject>`
+Run: `../wasm-team/scripts/compare-test-results.sh <TestProject>`
 
 ### Extra in CoreCLR (X tests)
 

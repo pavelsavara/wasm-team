@@ -1,13 +1,24 @@
 #!/bin/bash
 
 # Script to compare test results between CoreCLR and Mono baseline
-# Usage: ./browser-tests/compare-test-results.sh <TestProjectName>
-# Example: ./browser-tests/compare-test-results.sh System.Runtime.InteropServices.JavaScript.Tests
+# 
+# Usage: Run from the root of a runtime repository (runtime or runtime2)
+#   ../wasm-team/scripts/compare-test-results.sh <TestProjectName>
+#
+# Example:
+#   ../wasm-team/scripts/compare-test-results.sh System.Runtime.InteropServices.JavaScript.Tests
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Detect runtime root - current directory should be runtime repo
+REPO_ROOT="$(pwd)"
+if [ ! -f "$REPO_ROOT/build.sh" ] || [ ! -d "$REPO_ROOT/src/libraries" ]; then
+    echo "Error: This script must be run from the root of a runtime repository."
+    echo "Usage: cd /path/to/runtime && $SCRIPT_DIR/compare-test-results.sh <TestProjectName>"
+    exit 1
+fi
 
 if [ -z "$1" ]; then
     echo "Usage: $0 <TestProjectName>"
@@ -25,13 +36,13 @@ CORECLR_RESULTS=$(ls -t "${RESULTS_DIR}"/testResults_*.xml 2>/dev/null | head -1
 
 if [ ! -f "$MONO_RESULTS" ]; then
     echo "Error: Mono baseline not found: $MONO_RESULTS"
-    echo "Run: ./browser-tests/download-mono-baseline.sh $TEST_PROJECT_NAME"
+    echo "Run: ../wasm-team/scripts/download-mono-baseline.sh $TEST_PROJECT_NAME"
     exit 1
 fi
 
 if [ -z "$CORECLR_RESULTS" ] || [ ! -f "$CORECLR_RESULTS" ]; then
     echo "Error: CoreCLR test results not found in: $RESULTS_DIR"
-    echo "Run the tests first with: ./browser-tests/run-test-suite.sh"
+    echo "Run the tests first with: ../wasm-team/scripts/run-test-suite.sh"
     exit 1
 fi
 

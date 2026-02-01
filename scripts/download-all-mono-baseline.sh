@@ -1,13 +1,23 @@
 #!/bin/bash
 
 # Script to download Mono baseline console logs for all test suites from Helix
-# Usage: ./browser-tests/download-all-mono-baseline.sh
+#
+# Usage: Run from the root of a runtime repository (runtime or runtime2)
+#   ../wasm-team/scripts/download-all-mono-baseline.sh
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKITEMS_JSON="${SCRIPT_DIR}/Mono-chrome-workitems.json"
 DOWNLOAD_SCRIPT="${SCRIPT_DIR}/download-mono-baseline.sh"
+
+# Detect runtime root - current directory should be runtime repo
+REPO_ROOT="$(pwd)"
+if [ ! -f "$REPO_ROOT/build.sh" ] || [ ! -d "$REPO_ROOT/src/libraries" ]; then
+    echo "Error: This script must be run from the root of a runtime repository."
+    echo "Usage: cd /path/to/runtime && $SCRIPT_DIR/download-all-mono-baseline.sh"
+    exit 1
+fi
 
 # Check workitems file exists
 if [ ! -f "$WORKITEMS_JSON" ]; then
@@ -30,6 +40,7 @@ SUCCESS=0
 FAILED=0
 
 echo "Found $TOTAL test suites to download"
+echo "Runtime root: $REPO_ROOT"
 echo ""
 
 for PROJECT in $TEST_PROJECTS; do

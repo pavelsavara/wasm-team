@@ -2,19 +2,34 @@
 
 # Script to collect test suite information from Mono baselines
 # Downloads all baselines, extracts durations, and generates a sorted report
+#
+# Usage: Run from the root of a runtime repository (runtime or runtime2)
+#   ../wasm-team/scripts/collect-suite-info.sh
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+WASM_TEAM_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Detect runtime root - current directory should be runtime repo
+REPO_ROOT="$(pwd)"
+if [ ! -f "$REPO_ROOT/build.sh" ] || [ ! -d "$REPO_ROOT/src/libraries" ]; then
+    echo "Error: This script must be run from the root of a runtime repository."
+    echo "Usage: cd /path/to/runtime && $SCRIPT_DIR/collect-suite-info.sh"
+    exit 1
+fi
+
 WORKITEMS_JSON="${SCRIPT_DIR}/Mono-chrome-workitems.json"
-OUTPUT_FILE="${SCRIPT_DIR}/test-suites-info.md"
+OUTPUT_FILE="${REPO_ROOT}/browser-runs/test-suites-info.md"
 
 # Check workitems file exists
 if [ ! -f "$WORKITEMS_JSON" ]; then
     echo "Error: Workitems file not found: $WORKITEMS_JSON"
     exit 1
 fi
+
+# Ensure output directory exists
+mkdir -p "$(dirname "$OUTPUT_FILE")"
 
 # Get all workitem names
 WORKITEMS=$(jq -r '.[].Name' "$WORKITEMS_JSON")
@@ -23,6 +38,7 @@ WORKITEMS=$(jq -r '.[].Name' "$WORKITEMS_JSON")
 TEMP_DATA=$(mktemp)
 
 echo "Collecting test suite information..."
+echo "Runtime root: $REPO_ROOT"
 echo ""
 
 COUNT=0
@@ -98,4 +114,3 @@ echo "Report generated: $OUTPUT_FILE"
 echo ""
 echo "Summary:"
 wc -l < "$OUTPUT_FILE"
-echo "test suites total"
