@@ -27,8 +27,8 @@ if [ -z "$1" ]; then
 fi
 
 TEST_PROJECT_NAME="$1"
-BASELINE_DIR="${REPO_ROOT}/browser-runs/baseline/${TEST_PROJECT_NAME}"
-RESULTS_DIR="${REPO_ROOT}/browser-runs/results/${TEST_PROJECT_NAME}"
+BASELINE_DIR="${REPO_ROOT}/artifacts/browser-runs/baseline/${TEST_PROJECT_NAME}"
+RESULTS_DIR="${REPO_ROOT}/artifacts/browser-runs/results/${TEST_PROJECT_NAME}"
 MONO_RESULTS="${BASELINE_DIR}/mono-testResults.xml"
 
 # Find the most recent CoreCLR test results

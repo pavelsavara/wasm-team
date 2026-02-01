@@ -27,7 +27,7 @@ if [ -z "$1" ]; then
 fi
 
 TEST_PROJECT_NAME="$1"
-BASELINE_DIR="${REPO_ROOT}/browser-runs/baseline/${TEST_PROJECT_NAME}"
+BASELINE_DIR="${REPO_ROOT}/artifacts/browser-runs/baseline/${TEST_PROJECT_NAME}"
 MONO_LOG_PATH="${BASELINE_DIR}/mono-console.log"
 MONO_RESULTS_PATH="${BASELINE_DIR}/mono-testResults.xml"
 WORKITEMS_JSON="${SCRIPT_DIR}/Mono-chrome-workitems.json"

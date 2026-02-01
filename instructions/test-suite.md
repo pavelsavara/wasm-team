@@ -21,7 +21,7 @@ Example:
 ../wasm-team/scripts/download-mono-baseline.sh System.Runtime.InteropServices.JavaScript.Tests
 ```
 
-This downloads to `browser-runs/baseline/<TestProject>/mono-console.log` and displays the Mono test summary.
+This downloads to `artifacts/browser-runs/baseline/<TestProject>/mono-console.log` and displays the Mono test summary.
 
 ## Running Tests
 
@@ -44,9 +44,9 @@ Example:
 | Build logs | `artifacts/log/Debug/` |
 | Test results XML | `artifacts/bin/<TestProject>/Debug/net11.0-browser/browser-wasm/wwwroot/xharness-output/testResults.xml` |
 | Console log | `artifacts/bin/<TestProject>/Debug/net11.0-browser/browser-wasm/wwwroot/xharness-output/wasm-console.log` |
-| Collected results | `browser-runs/results/<TestProject>/` |
+| Collected results | `artifacts/browser-runs/results/<TestProject>/` |
 
-**Note:** The output path may vary (e.g., `net11.0/browser-wasm` instead of `net11.0-browser/browser-wasm`). The `run-test-suite.sh` script handles this automatically and copies results to `browser-runs/results/<TestProject>/testResults_<timestamp>.xml`.
+**Note:** The output path may vary (e.g., `net11.0/browser-wasm` instead of `net11.0-browser/browser-wasm`). The `run-test-suite.sh` script handles this automatically and copies results to `artifacts/browser-runs/results/<TestProject>/testResults_<timestamp>.xml`.
 
 **Important:** The `compare-test-results.sh` script expects files named `testResults_*.xml` in the results directory. If you manually copy test results, use this naming pattern.
 
@@ -61,18 +61,18 @@ Example:
    - Full test name (namespace.class.method)
    - Full stack trace
    - Failure reason/exception type
-3. **⚠️ IMPORTANT: Create failure record FIRST** for each individual test/method/Fact/Theory in `/browser-runs/failures/<TestSuiteName>/<ClassName.MethodName>.md` (e.g., `JSImportTest.JsImportSleep.md`) with the [template](#Method-Failure-Documentation-Template). **Do this before applying any fix!**
+3. **⚠️ IMPORTANT: Create failure record FIRST** for each individual test/method/Fact/Theory in `artifacts/browser-runs/failures/<TestSuiteName>/<ClassName.MethodName>.md` (e.g., `JSImportTest.JsImportSleep.md`) with the [template](#Method-Failure-Documentation-Template). **Do this before applying any fix!**
 4. **Fix the known problems** fix only things described in [fixing-problems.md](fixing-problems.md).
 5. **Mark test** with `[ActiveIssue("https://github.com/dotnet/runtime/issues/123011", typeof(PlatformDetection), nameof(PlatformDetection.IsBrowser), nameof(PlatformDetection.IsCoreCLR))]`
-6. **Failing Asserts** if there are failing asserts during the run create record in `/browser-runs/failures/<TestSuiteName>/<ClassName.MethodName>.md` with the [template](#Method-Failure-Documentation-Template)
-7. **Compare test counts**: `Tests run: X Passed: Y Failed: Z Skipped: N` with the Mono baseline at: `browser-runs/baseline/<TestProject>/mono-console.log`
-8. **Compare test sets** with the Mono baseline at: `browser-runs/baseline/<TestProject>/mono-testResults.xml`. Which tests are missing and which are extra ?
-9. **Create or update** `browser-runs/results/<TestProject>/Summary.md` with the outcome. **Include link to failure record in the Failures section!**
+6. **Failing Asserts** if there are failing asserts during the run create record in `artifacts/browser-runs/failures/<TestSuiteName>/<ClassName.MethodName>.md` with the [template](#Method-Failure-Documentation-Template)
+7. **Compare test counts**: `Tests run: X Passed: Y Failed: Z Skipped: N` with the Mono baseline at: `artifacts/browser-runs/baseline/<TestProject>/mono-console.log`
+8. **Compare test sets** with the Mono baseline at: `artifacts/browser-runs/baseline/<TestProject>/mono-testResults.xml`. Which tests are missing and which are extra ?
+9. **Create or update** `artifacts/browser-runs/results/<TestProject>/Summary.md` with the outcome. **Include link to failure record in the Failures section!**
 10. **Update the overall status** in "Completed Test Suites" of plan.md
 11. **Stop and ask for feedback before proceeding.**
 12. **Rebuild and re-run** the test suite to continue until all enabled tests pass or until you tried to run the suite more then 3 times already.
 
-> **Reminder:** Always create the failure record in `/browser-runs/failures/` before moving on. This documentation is critical for tracking issues and understanding patterns across test suites.
+> **Reminder:** Always create the failure record in `artifacts/browser-runs/failures/` before moving on. This documentation is critical for tracking issues and understanding patterns across test suites.
 
 ### Handling Timeouts/Crashes/Aborts
 
@@ -153,7 +153,7 @@ Common benign differences:
 
 ## Summary.md Template
 
-Create or update `browser-runs/results/<TestProject>/Summary.md` after each test run:
+Create or update `artifacts/browser-runs/results/<TestProject>/Summary.md` after each test run:
 
 ```markdown
 # <TestProject> Summary
@@ -192,7 +192,7 @@ _Tests that ran on Mono but not CoreCLR. Investigate if unexpected._
 
 ## Failures and Asserts
 
-_Link to failure records in `/browser-runs/failures/<TestProject>/`._
+_Link to failure records in `artifacts/browser-runs/failures/<TestProject>/`._
 
 | Issue | Type | Link |
 |-------|------|------|

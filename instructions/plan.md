@@ -34,7 +34,7 @@ Each work item has a `DetailsUrl` that links to Helix logs with `ConsoleOutputUr
 1. Run all library test suites on Browser/WASM + CoreCLR
 2. Compare results with Mono baseline
 3. Mark failing tests with `[ActiveIssue("https://github.com/dotnet/runtime/issues/123011")]`
-4. Document each failure with full test name and stack trace in `/browser-runs/failures/`
+4. Document each failure with full test name and stack trace in `artifacts/browser-runs/failures/`
 
 ## Decisions Made
 

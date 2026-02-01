@@ -57,7 +57,7 @@ export SSL_CERT_DIR="$HOME/.aspnet/dev-certs/trust:/usr/lib/ssl/certs"
 export PATH="$REPO_ROOT/.dotnet:$PATH"
 
 # Prepare results directory
-RESULTS_DIR="$REPO_ROOT/browser-runs/results/$SUITE_NAME"
+RESULTS_DIR="$REPO_ROOT/artifacts/browser-runs/results/$SUITE_NAME"
 mkdir -p "$RESULTS_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BUILD_LOG="$RESULTS_DIR/build_${TIMESTAMP}.log"

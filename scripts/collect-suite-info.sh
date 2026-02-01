@@ -20,7 +20,7 @@ if [ ! -f "$REPO_ROOT/build.sh" ] || [ ! -d "$REPO_ROOT/src/libraries" ]; then
 fi
 
 WORKITEMS_JSON="${SCRIPT_DIR}/Mono-chrome-workitems.json"
-OUTPUT_FILE="${REPO_ROOT}/browser-runs/test-suites-info.md"
+OUTPUT_FILE="${REPO_ROOT}/artifacts/browser-runs/test-suites-info.md"
 
 # Check workitems file exists
 if [ ! -f "$WORKITEMS_JSON" ]; then
@@ -50,7 +50,7 @@ for WORKITEM in $WORKITEMS; do
     # Extract test project name from workitem name (remove "WasmTestOnChrome-ST-" prefix)
     TEST_PROJECT=$(echo "$WORKITEM" | sed 's/WasmTestOnChrome-ST-//')
     
-    BASELINE_DIR="${REPO_ROOT}/browser-runs/baseline/${TEST_PROJECT}"
+    BASELINE_DIR="${REPO_ROOT}/artifacts/browser-runs/baseline/${TEST_PROJECT}"
     MONO_LOG="${BASELINE_DIR}/mono-console.log"
     
     # Download baseline if not exists
