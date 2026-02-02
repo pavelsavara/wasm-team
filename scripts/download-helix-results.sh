@@ -34,11 +34,8 @@ MONO_RESULTS_PATH="${RESULTS_DIR}/mono-testResults.xml"
 WORKITEMS_JSON="${REPO_ROOT}/artifacts/browser-runs/${RUN_NAME}/helix-results.json"
 
 # Check if already downloaded
-if [ -f "$MONO_LOG_PATH" ] || [ -f "$MONO_RESULTS_PATH" ]; then
-    echo "Mono helix results already exists:"
-    echo "  - $MONO_LOG_PATH"
-    echo "  - $MONO_RESULTS_PATH"
-    echo "Delete them first if you want to re-download."
+if [ -f "$MONO_LOG_PATH" ] && [ -f "$MONO_RESULTS_PATH" ]; then
+    echo "✓ Already downloaded: $TEST_PROJECT_NAME"
     exit 0
 fi
 
@@ -51,14 +48,14 @@ fi
 # Create results directory
 mkdir -p "$RESULTS_DIR"
 
-# Find the workitem for this test suite
-WORKITEM_NAME="WasmTestOnChrome-ST-${TEST_PROJECT_NAME}"
-echo "Looking for workitem: $WORKITEM_NAME"
+# Find the workitem for this test suite using regex pattern
+WORKITEM_PATTERN="WasmTestOn(Chrome|Firefox)-(ST|CLR-ST|MONO-ST|MONO-MT)-${TEST_PROJECT_NAME}"
+echo "Looking for workitem matching: $WORKITEM_PATTERN"
 
-DETAILS_URL=$(jq -r ".[] | select(.Name == \"$WORKITEM_NAME\") | .DetailsUrl" "$WORKITEMS_JSON" 2>/dev/null || echo "")
+DETAILS_URL=$(jq -r ".[] | select(.Name | test(\"$WORKITEM_PATTERN\")) | .DetailsUrl" "$WORKITEMS_JSON" 2>/dev/null | head -1 || echo "")
 
 if [ -z "$DETAILS_URL" ] || [ "$DETAILS_URL" = "null" ]; then
-    echo "Error: Workitem '$WORKITEM_NAME' not found in $WORKITEMS_JSON"
+    echo "Error: Workitem matching '$WORKITEM_PATTERN' not found in $WORKITEMS_JSON"
     echo ""
     echo "Available workitems containing '$TEST_PROJECT_NAME':"
     jq -r ".[].Name" "$WORKITEMS_JSON" | grep -i "$TEST_PROJECT_NAME" || echo "  (none found)"
@@ -86,27 +83,35 @@ if [ -z "$TEST_RESULTS_URI" ]; then
     echo "Warning: testResults.xml not found in workitem files"
 fi
 
-echo "Downloading console log..."
-if curl -s -o "$MONO_LOG_PATH" "$CONSOLE_URI"; then
-    FILE_SIZE=$(wc -c < "$MONO_LOG_PATH")
-    echo "✓ Downloaded helix results: $MONO_LOG_PATH ($FILE_SIZE bytes)"
-    
-    # Extract and display test summary
-    echo ""
-    echo "Mono Test Summary:"
-    grep "TEST EXECUTION SUMMARY" -A1 "$MONO_LOG_PATH" | tail -2 || echo "  (summary not found)"
+if [ -f "$MONO_LOG_PATH" ]; then
+    echo "✓ Console log already exists: $MONO_LOG_PATH"
 else
-    echo "Error: Failed to download console log from: $CONSOLE_URI"
-    exit 1
+    echo "Downloading console log..."
+    if curl -s -o "$MONO_LOG_PATH" "$CONSOLE_URI"; then
+        FILE_SIZE=$(wc -c < "$MONO_LOG_PATH")
+        echo "✓ Downloaded helix results: $MONO_LOG_PATH ($FILE_SIZE bytes)"
+        
+        # Extract and display test summary
+        echo ""
+        echo "Mono Test Summary:"
+        grep "TEST EXECUTION SUMMARY" -A1 "$MONO_LOG_PATH" | tail -2 || echo "  (summary not found)"
+    else
+        echo "Error: Failed to download console log from: $CONSOLE_URI"
+        exit 1
+    fi
 fi
 
 if [ -n "$TEST_RESULTS_URI" ]; then
-    echo ""
-    echo "Downloading testResults.xml..."
-    if curl -s -o "$MONO_RESULTS_PATH" "$TEST_RESULTS_URI"; then
-        FILE_SIZE=$(wc -c < "$MONO_RESULTS_PATH")
-        echo "✓ Downloaded Mono test results: $MONO_RESULTS_PATH ($FILE_SIZE bytes)"
+    if [ -f "$MONO_RESULTS_PATH" ]; then
+        echo "✓ Test results already exist: $MONO_RESULTS_PATH"
     else
-        echo "Warning: Failed to download testResults.xml from: $TEST_RESULTS_URI"
+        echo ""
+        echo "Downloading testResults.xml..."
+        if curl -s -o "$MONO_RESULTS_PATH" "$TEST_RESULTS_URI"; then
+            FILE_SIZE=$(wc -c < "$MONO_RESULTS_PATH")
+            echo "✓ Downloaded Mono test results: $MONO_RESULTS_PATH ($FILE_SIZE bytes)"
+        else
+            echo "Warning: Failed to download testResults.xml from: $TEST_RESULTS_URI"
+        fi
     fi
 fi

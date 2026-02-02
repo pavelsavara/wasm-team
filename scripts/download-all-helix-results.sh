@@ -46,33 +46,47 @@ if ! curl -s -o "$WORKITEMS_JSON" "$RUN_URL"; then
     exit 1
 fi
 
-# Extract test project names from workitem names (strip "WasmTestOnChrome-ST-" prefix)
-TEST_PROJECTS=$(jq -r '.[].Name | sub("^WasmTestOnChrome-ST-"; "")' "$WORKITEMS_JSON")
+# Extract test project names from workitem names
+# Match prefixes: WasmTestOnChrome-ST-, WasmTestOnFirefox-ST-, WasmTestOnChrome-CLR-ST-, WasmTestOnFirefox-MONO-ST-, WasmTestOnChrome-MONO-MT-
+TEST_PROJECTS=$(jq -r '.[].Name | select(test("^WasmTestOn(Chrome|Firefox)-(ST|MT|CLR-ST|MONO-ST|MONO-MT)-")) | sub("^WasmTestOn(Chrome|Firefox)-(ST|MT|CLR-ST|MONO-ST|MONO-MT)-"; "")' "$WORKITEMS_JSON")
 
 TOTAL=$(echo "$TEST_PROJECTS" | wc -l)
-CURRENT=0
-SUCCESS=0
-FAILED=0
+MAX_PARALLEL=${MAX_PARALLEL:-10}
 
 echo "Found $TOTAL test suites to download"
 echo "Runtime root: $REPO_ROOT"
+echo "Parallel downloads: $MAX_PARALLEL"
 echo ""
 
-for PROJECT in $TEST_PROJECTS; do
-    CURRENT=$((CURRENT + 1))
-    echo "[$CURRENT/$TOTAL] Downloading: $PROJECT"
-    echo "----------------------------------------"
-    
-    if "$DOWNLOAD_SCRIPT" "$RUN_NAME" "$PROJECT"; then
-        SUCCESS=$((SUCCESS + 1))
-    else
-        FAILED=$((FAILED + 1))
-        echo "Warning: Failed to download baseline for $PROJECT"
-    fi
-    
-    echo ""
-done
+# Create a temporary directory for tracking results
+TEMP_DIR=$(mktemp -d)
+trap "rm -rf $TEMP_DIR" EXIT
 
+# Function to download a single project
+download_project() {
+    local PROJECT="$1"
+    local RESULT_FILE="$TEMP_DIR/$PROJECT.result"
+    
+    if "$DOWNLOAD_SCRIPT" "$RUN_NAME" "$PROJECT" > "$TEMP_DIR/$PROJECT.log" 2>&1; then
+        echo "success" > "$RESULT_FILE"
+        echo "✓ $PROJECT"
+    else
+        echo "failed" > "$RESULT_FILE"
+        echo "✗ $PROJECT (see log for details)"
+    fi
+}
+
+export -f download_project
+export DOWNLOAD_SCRIPT RUN_NAME TEMP_DIR
+
+# Run downloads in parallel using xargs
+echo "$TEST_PROJECTS" | xargs -P "$MAX_PARALLEL" -I {} bash -c 'download_project "$@"' _ {}
+
+# Count results
+SUCCESS=$(find "$TEMP_DIR" -name "*.result" -exec cat {} \; | grep -c "success" || true)
+FAILED=$(find "$TEMP_DIR" -name "*.result" -exec cat {} \; | grep -c "failed" || true)
+
+echo ""
 echo "========================================"
 echo "Download Summary:"
 echo "  Total:   $TOTAL"
@@ -80,6 +94,16 @@ echo "  Success: $SUCCESS"
 echo "  Failed:  $FAILED"
 echo "========================================"
 
+# Show failed projects
 if [ $FAILED -gt 0 ]; then
+    echo ""
+    echo "Failed projects:"
+    for f in "$TEMP_DIR"/*.result; do
+        if [ -f "$f" ] && grep -q "failed" "$f"; then
+            PROJECT=$(basename "$f" .result)
+            echo "  - $PROJECT"
+            echo "    Log: $TEMP_DIR/$PROJECT.log"
+        fi
+    done
     exit 1
 fi
