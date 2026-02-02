@@ -13,8 +13,10 @@
 # Options:
 #   --parallel <N>     Number of parallel jobs (default: 10)
 #   --output-dir <dir> Directory for CLI outputs (default: $REPO_ROOT/artifacts/cli)
-#   --model <model>    AI model to use (default: claude-sonnet-4)
+#   --model <model>    AI model to use (default: gpt-5.1-codex-mini)
 #   --dry-run          Print commands without executing them
+#   --verbose          Enable verbose logging and print CLI output
+#   --yolo             Enable all permissions (no confirmation prompts)
 #
 # Examples:
 #   ../wasm-team/scripts/cli-for-each.sh failed-tests.txt fix-instructions.md
@@ -41,8 +43,11 @@ fi
 # Default values
 PARALLEL_JOBS=10
 OUTPUT_DIR="$REPO_ROOT/artifacts/cli"
-MODEL="claude-sonnet-4"
+MODEL="gpt-5.1-codex-mini"
+FALLBACK_MODEL="claude-opus-4.5"
 DRY_RUN=false
+VERBOSE=false
+YOLO=false
 
 # Parse arguments
 ITEMS_FILE=""
@@ -64,6 +69,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --dry-run)
             DRY_RUN=true
+            shift
+            ;;
+        --verbose)
+            VERBOSE=true
+            shift
+            ;;
+        --yolo)
+            YOLO=true
             shift
             ;;
         -h|--help)
@@ -134,6 +147,8 @@ echo "Parallel jobs:    $PARALLEL_JOBS"
 echo "Model:            $MODEL"
 echo "Total items:      $TOTAL_ITEMS"
 echo "Dry run:          $DRY_RUN"
+echo "Verbose:          $VERBOSE"
+echo "Yolo:             $YOLO"
 echo "=============================================="
 
 # Create a temporary directory for job tracking
@@ -151,6 +166,8 @@ process_item() {
     local repo_root="$7"
     local tracking_dir="$8"
     local dry_run="$9"
+    local verbose="${10}"
+    local yolo="${11}"
     
     # Skip empty lines
     if [ -z "$item" ]; then
@@ -163,39 +180,124 @@ process_item() {
     local output_file="$output_dir/${safe_name}_${timestamp}.md"
     local error_file="$output_dir/${safe_name}_${timestamp}.error"
     local log_file="$output_dir/${safe_name}_${timestamp}.log"
+    local instructions_file="$output_dir/${safe_name}_${timestamp}.instructions"
     
     # Replace placeholders in instructions
     local instructions="${instructions_template//\{\{ITEM\}\}/$item}"
     instructions="${instructions//\{\{ERROR\}\}/$error_file}"
     
+    if [ "$verbose" = "true" ]; then
+        # Save expanded instructions to file
+        echo "$instructions" > "$instructions_file"
+
+        echo "[${item_index}] Instructions file: $instructions_file"
+        echo "[${item_index}] Log file: $log_file"
+        echo "[${item_index}] Error file: $error_file"
+        echo "[${item_index}] Output file: $output_file"
+        echo "[${item_index}] --- Expanded instructions ---"
+        echo "$instructions"
+        echo "[${item_index}] --- End instructions ---"
+    fi
+    
     echo "[${item_index}] Processing: $item"
     
     if [ "$dry_run" = "true" ]; then
-        echo "[${item_index}] Would run: $copilot_cli -p \"...\" --model $model --yolo --share \"$output_file\""
+        local yolo_flag=""
+        if [ "$yolo" = "true" ]; then
+            yolo_flag="--yolo "
+        fi
+        echo "[${item_index}] Would run: $copilot_cli -p \"...\" --model $model ${yolo_flag}--share \"$output_file\""
         echo "pass" > "$tracking_dir/$item_index"
         return 0
     fi
     
     # Run copilot CLI
     cd "$repo_root"
+    
+    if [ "$verbose" = "true" ]; then
+        echo "[${item_index}] Starting CLI..."
+    fi
+    
+    # Build yolo args
+    local yolo_args=""
+    if [ "$yolo" = "true" ]; then
+        yolo_args="--yolo"
+    fi
+    
     if "$copilot_cli" \
         -p "$instructions" \
         --model "$model" \
-        --yolo \
+        $yolo_args \
         --no-ask-user \
         --share "$output_file" \
         > "$log_file" 2>&1; then
         
+        if [ "$verbose" = "true" ]; then
+            echo "[${item_index}] --- CLI Output ---"
+            cat "$log_file"
+            echo "[${item_index}] --- End CLI Output ---"
+        fi
+        
         # Check if error file was created by CLI (indicates failure)
         if [ -f "$error_file" ]; then
-            echo ""
-            echo "=============================================="
-            echo "[${item_index}] FAILED: $item"
-            echo "Error output:"
-            cat "$error_file"
-            echo "=============================================="
-            echo ""
-            echo "fail" > "$tracking_dir/$item_index"
+            local fallback_model="claude-opus-4.5"
+            echo "[${item_index}] First attempt failed, retrying with $fallback_model..."
+            
+            # Remove the error file before retry
+            rm -f "$error_file"
+            
+            # Create new filenames for retry
+            local retry_log_file="${log_file%.log}_retry.log"
+            local retry_output_file="${output_file%.md}_retry.md"
+            
+            if [ "$verbose" = "true" ]; then
+                echo "[${item_index}] Retry log file: $retry_log_file"
+                echo "[${item_index}] Starting CLI retry with $fallback_model..."
+            fi
+            
+            # Retry with fallback model
+            if "$copilot_cli" \
+                -p "$instructions" \
+                --model "$fallback_model" \
+                $yolo_args \
+                --no-ask-user \
+                --share "$retry_output_file" \
+                > "$retry_log_file" 2>&1; then
+                
+                if [ "$verbose" = "true" ]; then
+                    echo "[${item_index}] --- Retry CLI Output ---"
+                    cat "$retry_log_file"
+                    echo "[${item_index}] --- End Retry CLI Output ---"
+                fi
+                
+                # Check if error file was created again
+                if [ -f "$error_file" ]; then
+                    echo ""
+                    echo "=============================================="
+                    echo "[${item_index}] FAILED (after retry): $item"
+                    echo "Error output:"
+                    cat "$error_file"
+                    echo "=============================================="
+                    echo ""
+                    echo "fail" > "$tracking_dir/$item_index"
+                else
+                    echo "[${item_index}] Completed (on retry with $fallback_model): $item"
+                    echo "pass" > "$tracking_dir/$item_index"
+                fi
+            else
+                echo ""
+                echo "=============================================="
+                echo "[${item_index}] CLI ERROR on retry: $item"
+                echo "CLI exited with non-zero status. Check log: $retry_log_file"
+                if [ "$verbose" = "true" ]; then
+                    echo "--- Retry CLI Output ---"
+                    cat "$retry_log_file"
+                    echo "--- End Retry CLI Output ---"
+                fi
+                echo "=============================================="
+                echo ""
+                echo "fail" > "$tracking_dir/$item_index"
+            fi
         else
             echo "[${item_index}] Completed: $item"
             echo "pass" > "$tracking_dir/$item_index"
@@ -205,6 +307,11 @@ process_item() {
         echo "=============================================="
         echo "[${item_index}] CLI ERROR: $item"
         echo "CLI exited with non-zero status. Check log: $log_file"
+        if [ "$verbose" = "true" ]; then
+            echo "--- CLI Output ---"
+            cat "$log_file"
+            echo "--- End CLI Output ---"
+        fi
         echo "=============================================="
         echo ""
         echo "fail" > "$tracking_dir/$item_index"
@@ -230,7 +337,7 @@ for item in "${ITEMS[@]}"; do
     done
     
     # Start new job in background
-    process_item "$item" "$item_index" "$COPILOT_CLI" "$OUTPUT_DIR" "$MODEL" "$INSTRUCTIONS_TEMPLATE" "$REPO_ROOT" "$TRACKING_DIR" "$DRY_RUN" &
+    process_item "$item" "$item_index" "$COPILOT_CLI" "$OUTPUT_DIR" "$MODEL" "$INSTRUCTIONS_TEMPLATE" "$REPO_ROOT" "$TRACKING_DIR" "$DRY_RUN" "$VERBOSE" "$YOLO" &
     running_jobs=$((running_jobs + 1))
 done
 

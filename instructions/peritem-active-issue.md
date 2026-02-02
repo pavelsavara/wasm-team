@@ -1,2 +1,4 @@
-- Find C# source code for unit test {{ITEM}} and mark it with `[ActiveIssue("https://github.com/dotnet/runtime/issues/123011", typeof(PlatformDetection), nameof(PlatformDetection.IsBrowser), nameof(PlatformDetection.IsCoreCLR))]`
-- If you can't do it create file {{ERROR}} with short description of the problem.
+- Find C# source code for unit test `{{ITEM}}` and mark it with `[ActiveIssue("https://github.com/dotnet/runtime/issues/123011", typeof(PlatformDetection), nameof(PlatformDetection.IsBrowser), nameof(PlatformDetection.IsCoreCLR))]`
+- if the exactly same ActiveIssue and link is already there, that's OK, you are done.
+- If you can't make the change create file {{ERROR}} with short description of the problem.
+- Don't use sudo, don't install new packages
