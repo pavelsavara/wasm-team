@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Script to download Mono baseline console log from Helix
+# Script to download helix results console log from Helix
 #
 # Usage: Run from the root of a runtime repository (runtime or runtime2)
-#   ../wasm-team/scripts/download-mono-baseline.sh <TestProjectName>
+#   ../wasm-team/scripts/download-helix-results.sh <RunName> <TestProjectName>
 #
 # Example:
-#   ../wasm-team/scripts/download-mono-baseline.sh System.Runtime.InteropServices.JavaScript.Tests
+#   ../wasm-team/scripts/download-helix-results.sh MonoBaseline System.Runtime.InteropServices.JavaScript.Tests
 
 set -e
 
@@ -16,25 +16,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(pwd)"
 if [ ! -f "$REPO_ROOT/build.sh" ] || [ ! -d "$REPO_ROOT/src/libraries" ]; then
     echo "Error: This script must be run from the root of a runtime repository."
-    echo "Usage: cd /path/to/runtime && $SCRIPT_DIR/download-mono-baseline.sh <TestProjectName>"
+    echo "Usage: cd /path/to/runtime && $SCRIPT_DIR/download-helix-results.sh <RunName> <TestProjectName>"
     exit 1
 fi
 
-if [ -z "$1" ]; then
-    echo "Usage: $0 <TestProjectName>"
-    echo "Example: $0 System.Runtime.InteropServices.JavaScript.Tests"
+if [ -z "$2" ]; then
+    echo "Usage: $0 <RunName> <TestProjectName>"
+    echo "Example: $0 MonoBaseline System.Runtime.InteropServices.JavaScript.Tests"
     exit 1
 fi
 
-TEST_PROJECT_NAME="$1"
-BASELINE_DIR="${REPO_ROOT}/artifacts/browser-runs/baseline/${TEST_PROJECT_NAME}"
-MONO_LOG_PATH="${BASELINE_DIR}/mono-console.log"
-MONO_RESULTS_PATH="${BASELINE_DIR}/mono-testResults.xml"
-WORKITEMS_JSON="${SCRIPT_DIR}/Mono-chrome-workitems.json"
+RUN_NAME="$1"
+TEST_PROJECT_NAME="$2"
+RESULTS_DIR="${REPO_ROOT}/artifacts/browser-runs/${RUN_NAME}/${TEST_PROJECT_NAME}"
+MONO_LOG_PATH="${RESULTS_DIR}/mono-console.log"
+MONO_RESULTS_PATH="${RESULTS_DIR}/mono-testResults.xml"
+WORKITEMS_JSON="${REPO_ROOT}/artifacts/browser-runs/${RUN_NAME}/helix-results.json"
 
 # Check if already downloaded
 if [ -f "$MONO_LOG_PATH" ] || [ -f "$MONO_RESULTS_PATH" ]; then
-    echo "Mono baseline already exists:"
+    echo "Mono helix results already exists:"
     echo "  - $MONO_LOG_PATH"
     echo "  - $MONO_RESULTS_PATH"
     echo "Delete them first if you want to re-download."
@@ -47,8 +48,8 @@ if [ ! -f "$WORKITEMS_JSON" ]; then
     exit 1
 fi
 
-# Create baseline directory
-mkdir -p "$BASELINE_DIR"
+# Create results directory
+mkdir -p "$RESULTS_DIR"
 
 # Find the workitem for this test suite
 WORKITEM_NAME="WasmTestOnChrome-ST-${TEST_PROJECT_NAME}"
@@ -88,7 +89,7 @@ fi
 echo "Downloading console log..."
 if curl -s -o "$MONO_LOG_PATH" "$CONSOLE_URI"; then
     FILE_SIZE=$(wc -c < "$MONO_LOG_PATH")
-    echo "✓ Downloaded Mono baseline: $MONO_LOG_PATH ($FILE_SIZE bytes)"
+    echo "✓ Downloaded helix results: $MONO_LOG_PATH ($FILE_SIZE bytes)"
     
     # Extract and display test summary
     echo ""

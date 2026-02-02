@@ -8,8 +8,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKITEMS_JSON="${SCRIPT_DIR}/Mono-chrome-workitems.json"
-DOWNLOAD_SCRIPT="${SCRIPT_DIR}/download-mono-baseline.sh"
+DOWNLOAD_SCRIPT="${SCRIPT_DIR}/download-helix-results.sh"
 
 # Detect runtime root - current directory should be runtime repo
 REPO_ROOT="$(pwd)"
@@ -19,15 +18,31 @@ if [ ! -f "$REPO_ROOT/build.sh" ] || [ ! -d "$REPO_ROOT/src/libraries" ]; then
     exit 1
 fi
 
-# Check workitems file exists
-if [ ! -f "$WORKITEMS_JSON" ]; then
-    echo "Error: Workitems file not found: $WORKITEMS_JSON"
+if [ -z "$2" ]; then
+    echo "Usage: $0 <RunName> RunUrl"
+    echo "Usage: $0 MonoBaseline https://helix.dot.net/api/jobs/dfab4ca1-2330-4760-a051-b9edef08c80c/workitems?api-version=2019-06-17"
+    echo "Usage: $0 CoreCLR https://helix.dot.net/api/jobs/05679ccb-bca6-4ea4-9fd0-cf1b1b4d33d3/workitems?api-version=2019-06-17"
     exit 1
 fi
 
 # Check download script exists
 if [ ! -f "$DOWNLOAD_SCRIPT" ]; then
     echo "Error: Download script not found: $DOWNLOAD_SCRIPT"
+    exit 1
+fi
+
+RUN_NAME="$1"
+RUN_URL="$2"
+
+RESULTS_DIR="${REPO_ROOT}/artifacts/browser-runs/${RUN_NAME}/"
+WORKITEMS_JSON="${RESULTS_DIR}/helix-results.json"
+
+
+# Download workitems JSON and store it in WORKITEMS_JSON
+echo "Downloading workitems from Helix run: $RUN_URL"
+mkdir -p "$RESULTS_DIR"
+if ! curl -s -o "$WORKITEMS_JSON" "$RUN_URL"; then
+    echo "Error: Failed to download workitems from Helix."
     exit 1
 fi
 
@@ -48,7 +63,7 @@ for PROJECT in $TEST_PROJECTS; do
     echo "[$CURRENT/$TOTAL] Downloading: $PROJECT"
     echo "----------------------------------------"
     
-    if "$DOWNLOAD_SCRIPT" "$PROJECT"; then
+    if "$DOWNLOAD_SCRIPT" "$RUN_NAME" "$PROJECT"; then
         SUCCESS=$((SUCCESS + 1))
     else
         FAILED=$((FAILED + 1))
