@@ -227,6 +227,8 @@ process_item() {
     if "$copilot_cli" \
         -p "$instructions" \
         --model "$model" \
+        --add-dir "$repo_root" \
+        --allow-tool 'write' \
         $yolo_args \
         --no-ask-user \
         --share "$output_file" \
@@ -259,6 +261,8 @@ process_item() {
             if "$copilot_cli" \
                 -p "$instructions" \
                 --model "$fallback_model" \
+                --add-dir "$repo_root" \
+                --allow-tool 'write' \
                 $yolo_args \
                 --no-ask-user \
                 --share "$retry_output_file" \
