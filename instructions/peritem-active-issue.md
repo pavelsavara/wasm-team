@@ -1,0 +1,2 @@
+- Find C# source code for unit test {{ITEM}} and mark it with `[ActiveIssue("https://github.com/dotnet/runtime/issues/123011", typeof(PlatformDetection), nameof(PlatformDetection.IsBrowser), nameof(PlatformDetection.IsCoreCLR))]`
+- If you can't do it create file {{ERROR}} with short description of the problem.
