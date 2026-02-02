@@ -449,6 +449,32 @@ if [ -n "$METHOD" ] && [ "$TESTS_RUN" = "0" ]; then
     echo ""
     echo "Warning: Method filter '-m $METHOD' did not match any tests."
     echo "Check that the method name is fully qualified (Namespace.Class.Method)"
+
+    # Append to run-all-missing-tests.sh
+    RUN_MISSING_FILE="$SCRIPT_DIR/run-all-missing-tests.sh"
+
+    # Create file with shebang if it doesn't exist
+    if [ ! -f "$RUN_MISSING_FILE" ]; then
+        cat > "$RUN_MISSING_FILE" << 'EOF'
+#!/bin/bash
+# Auto-generated script to re-run tests that didn't match any test methods
+# Each line runs a single test method that was not found
+#
+# Usage: Run from the root of a runtime repository (runtime or runtime2)
+#   bash ../wasm-team/scripts/run-all-missing-tests.sh
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+EOF
+        chmod +x "$RUN_MISSING_FILE"
+    fi
+
+    # Append command for this missing test
+    echo "\"$SCRIPT_DIR/run-test-suite.sh\" \"$SUITE_NAME\" \"$CSPROJ_PATH\" -m $METHOD" >> "$RUN_MISSING_FILE"
+    echo "Appended command to: $RUN_MISSING_FILE"
+
     exit 1
 elif [ "$XHARNESS_EXIT" = "0" ]; then
     echo "✅ $SUITE_NAME: PASSED"
