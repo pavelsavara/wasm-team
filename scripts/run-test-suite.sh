@@ -348,6 +348,46 @@ if script_dir and suite_name and csproj_path and failures_by_method:
             f.write(f'"$SCRIPT_DIR/run-test-suite.sh" "{suite_name}" "{csproj_path}" -m {method_name}\n')
 
     print(f"Appended {len(failures_by_method)} command(s) to: {run_all_file}")
+PYEOF
+    fi
+
+    # Use Python to parse XML and record passed tests (runs regardless of failures)
+    export RESULTS_XML TIMESTAMP CSPROJ_PATH CONFIG SCRIPT_DIR REPO_ROOT
+    python3 << 'PYEOF'
+import xml.etree.ElementTree as ET
+import os
+import re
+
+results_xml = os.environ.get('RESULTS_XML', '')
+timestamp = os.environ.get('TIMESTAMP', '')
+script_dir = os.environ.get('SCRIPT_DIR', '')
+csproj_path = os.environ.get('CSPROJ_PATH', '')
+
+def extract_method_name(full_name):
+    # Extract method name without parameters
+    # e.g., "Namespace.Class.Method(param1, param2)" -> "Namespace.Class.Method"
+    match = re.match(r'^([^(]+)', full_name)
+    if match:
+        return match.group(1).strip()
+    return full_name
+
+tree = ET.parse(results_xml)
+root = tree.getroot()
+
+# Extract suite name from XML
+suite_name = None
+for assembly in root.iter('assembly'):
+    suite_name = assembly.get('name', '')
+    if suite_name:
+        if suite_name.endswith('.dll'):
+            suite_name = suite_name[:-4]
+        break
+if not suite_name:
+    for test_suite in root.iter('test-suite'):
+        if test_suite.get('type') == 'Assembly':
+            suite_name = test_suite.get('name', '')
+            if suite_name:
+                break
 
 # Collect passed tests and append to run-all-ok-tests.sh
 passes_by_method = set()
@@ -391,7 +431,6 @@ if script_dir and suite_name and csproj_path and passes_by_method:
 
     print(f"Appended {len(passes_by_method)} command(s) to: {run_ok_file}")
 PYEOF
-    fi
 fi
 
 # Run comparison if Mono baseline exists
